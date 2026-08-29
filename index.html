@@ -127,8 +127,8 @@
     themeToggle.textContent = isDark ? '🌙' : '☀️';
   });
 
-  // Todo state — lưu trong localStorage của trình duyệt (chưa có backend/database thật)
-  let tasks = JSON.parse(localStorage.getItem('tasks') || '[]');
+  // Todo state — giờ lấy/lưu qua API thật (server + SQLite), không còn localStorage nữa
+  let tasks = [];
   let filter = 'all';
 
   const listEl = document.getElementById('list');
@@ -136,8 +136,10 @@
   const countEl = document.getElementById('count');
   const inputEl = document.getElementById('task-input');
 
-  function save() {
-    localStorage.setItem('tasks', JSON.stringify(tasks));
+  async function loadTasks() {
+    const res = await fetch('/api/tasks');
+    tasks = await res.json();
+    render();
   }
 
   function render() {
@@ -165,24 +167,35 @@
     countEl.textContent = `${remaining} việc còn lại`;
   }
 
-  function addTask() {
+  async function addTask() {
     const text = inputEl.value.trim();
     if (!text) return;
-    tasks.push({ id: Date.now(), text, done: false });
     inputEl.value = '';
-    save();
+    const res = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+    const newTask = await res.json();
+    tasks.push(newTask);
     render();
   }
 
-  function toggleTask(id) {
-    tasks = tasks.map(t => t.id === id ? { ...t, done: !t.done } : t);
-    save();
+  async function toggleTask(id) {
+    const t = tasks.find(t => t.id === id);
+    const done = !t.done;
+    await fetch(`/api/tasks/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ done })
+    });
+    t.done = done;
     render();
   }
 
-  function deleteTask(id) {
+  async function deleteTask(id) {
+    await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
     tasks = tasks.filter(t => t.id !== id);
-    save();
     render();
   }
 
@@ -198,13 +211,13 @@
     });
   });
 
-  document.getElementById('clear-done').addEventListener('click', () => {
+  document.getElementById('clear-done').addEventListener('click', async () => {
+    await fetch('/api/tasks', { method: 'DELETE' });
     tasks = tasks.filter(t => !t.done);
-    save();
     render();
   });
 
-  render();
+  loadTasks();
 </script>
 
 </body>
